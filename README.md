@@ -29,3 +29,7 @@ Tag a version and push; GitHub Actions builds the installer and attaches it to a
 ```
 git tag v0.1.0 && git push origin v0.1.0
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).
