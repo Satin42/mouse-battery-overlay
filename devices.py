@@ -27,24 +27,59 @@ def _rz_pkt(tid, cls, cid, size):
     return bytes([0]) + bytes(b)
 
 
+log_fn = None  # set by core; used for diagnostics only
+
+
+def _dbg(msg):
+    if log_fn:
+        try:
+            log_fn(msg)
+        except Exception:
+            pass
+
+
 def _rz_ask(h, tid, cid):
+    """Send a class-0x07 query and return the reply to THIS command, or None.
+    Wireless replies are relayed by the dongle and arrive late; reading too early returns
+    the previous command's reply (that produced bogus 0% / 100%). So the echoed command
+    class/id must match, and status must be success; status 0/1 means 'not ready, keep polling'."""
     h.send_feature_report(_rz_pkt(tid, 0x07, cid, 2))
-    time.sleep(0.05)
-    r = h.get_feature_report(0, 91)
-    return r if len(r) > 10 and r[1] == 2 else None  # status 2 = success
+    deadline = time.time() + 0.6
+    time.sleep(0.03)
+    while time.time() < deadline:
+        r = h.get_feature_report(0, 91)
+        if len(r) > 10 and r[7] == 0x07 and r[8] == cid:
+            if r[1] == 2:
+                return r
+            if r[1] in (3, 4, 5):  # failed / timed out (mouse asleep) / not supported
+                _dbg(f"razer cmd {cid:#x} tid {tid:#x} status {r[1]}")
+                return None
+        time.sleep(0.03)
+    return None
 
 
 def _rz_try(path, tid):
     h = hid.device()
     try:
         h.open_path(path)
-        r = _rz_ask(h, tid, 0x80)
-        if r is None:
+        raws = []
+        for _ in range(3):
+            r = _rz_ask(h, tid, 0x80)
+            if r is not None:
+                raws.append(r[10])
+            time.sleep(0.05)
+        if not raws:
             return None
-        pct = round(r[10] / 255 * 100)
+        good = sorted(x for x in raws if x > 0)  # a raw level of 0 is a glitch, not an empty battery
+        _dbg(f"razer tid {tid:#x} raw samples {raws}")
+        if not good:
+            return None
+        raw = good[len(good) // 2]  # median
         r2 = _rz_ask(h, tid, 0x84)
-        return pct, bool(r2 and r2[10])
-    except Exception:
+        charging = bool(r2 is not None and r2[10] == 1)
+        return round(raw / 255 * 100), charging
+    except Exception as e:
+        _dbg(f"razer read error: {e!r}")
         return None
     finally:
         try:
