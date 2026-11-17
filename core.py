@@ -16,6 +16,7 @@ DEFAULTS = {
     "opacity": 85,                  # 20..100 (percent)
     "hotkey": "ctrl+alt+b",         # toggles the overlay on/off
     "enabled": True,
+    "tray_hint_shown": False,       # "still running in the tray" balloon shown once
     # Not in the GUI yet; edit config.json by hand if the auto-detect misses a game.
     "game_dirs": [],                # any exe under these folders counts as a game
     "game_exes": [],                # extra exe names always treated as games

@@ -166,6 +166,9 @@ class App:
         def run():
             try:
                 self.battery = core.read_battery()
+                b = self.battery  # last known level in the tray tooltip
+                self.tray.title = ("Mouse Battery Overlay" if not b else
+                                   f"{b['name']}: {b['percent']}%" + (" (charging)" if b["charging"] else ""))
             except Exception as e:
                 core.log(f"battery read failed: {e!r}")
                 self.battery = None
@@ -400,6 +403,14 @@ class App:
         w, self.settings = self.settings, None
         if w is not None:
             w.destroy()
+            if not self.cfg.get("tray_hint_shown"):  # once: closing does not quit
+                self.cfg["tray_hint_shown"] = True
+                self.save()
+                try:
+                    self.tray.notify("Still running in the system tray. Click the icon to reopen "
+                                     "Settings, right-click for the menu.", "Mouse Battery Overlay")
+                except Exception as e:
+                    core.log(f"tray notify failed: {e!r}")
 
 
 OPEN_EVENT = "Local\\MouseBatteryOverlay.open"
